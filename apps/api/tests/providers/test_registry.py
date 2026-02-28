@@ -1,5 +1,7 @@
 """Tests for provider registry functionality."""
 
+from datetime import date
+from decimal import Decimal
 from typing import List
 
 import pytest
@@ -47,7 +49,8 @@ class MockFundamentalsProvider(FundamentalsProvider):
         return IncomeStatement(
             company_id=ticker,
             fiscal_year=2023,
-            period=period,
+            period_end_date=date(2023, 12, 31),
+            currency="USD",
             source_provider="mock",
         )
 
@@ -55,7 +58,8 @@ class MockFundamentalsProvider(FundamentalsProvider):
         return BalanceSheet(
             company_id=ticker,
             fiscal_year=2023,
-            period=period,
+            period_end_date=date(2023, 12, 31),
+            currency="USD",
             source_provider="mock",
         )
 
@@ -63,7 +67,8 @@ class MockFundamentalsProvider(FundamentalsProvider):
         return CashFlow(
             company_id=ticker,
             fiscal_year=2023,
-            period=period,
+            period_end_date=date(2023, 12, 31),
+            currency="USD",
             source_provider="mock",
         )
 
@@ -74,8 +79,8 @@ class MockPriceProvider(PriceHistoryProvider):
     def get_price_history(
         self,
         ticker: str,
-        start_date: str,
-        end_date: str,
+        start_date: date,
+        end_date: date,
     ) -> PriceHistory:
         return PriceHistory(
             company_id=ticker,
@@ -84,13 +89,10 @@ class MockPriceProvider(PriceHistoryProvider):
             end_date=end_date,
             currency="USD",
             source_provider="mock",
-            prices=[],
+            data=[],
         )
 
     def get_latest_price(self, ticker: str) -> PriceData:
-        from datetime import date
-        from decimal import Decimal
-
         return PriceData(
             ticker=ticker,
             date=date.today(),
