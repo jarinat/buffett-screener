@@ -580,7 +580,7 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
             return None
 
     # ============================================================================
-    # PriceHistoryProvider Implementation (Stubs for future subtasks)
+    # PriceHistoryProvider Implementation
     # ============================================================================
 
     async def fetch_price_history(
@@ -592,7 +592,54 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
         """
         Fetch historical daily price data for a ticker.
 
-        NOTE: This is a stub for subtask-4-3. Full implementation coming next.
+        Retrieves daily OHLCV (Open, High, Low, Close, Volume) data from Yahoo Finance
+        for the specified date range. If no dates are specified, fetches maximum available history.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., 'AAPL').
+            start_date: Start date for price history. None = fetch maximum available history.
+            end_date: End date for price history. None = fetch up to most recent trading day.
+
+        Returns:
+            PriceHistoryDTO with historical price data, or None if ticker is invalid or data unavailable.
+
+        Raises:
+            ProviderError: If the API request fails or returns unexpected data.
+        """
+        self.logger.info(
+            f"Fetching price history for {ticker} "
+            f"(start_date={start_date}, end_date={end_date})"
+        )
+
+        try:
+            # Apply rate limiting and execute with retry
+            price_history = await self.with_retry(
+                self._fetch_price_history_impl,
+                ticker=ticker,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            return price_history
+
+        except Exception as e:
+            self.logger.error(f"Failed to fetch price history for {ticker}: {e}")
+            raise ProviderError(
+                message=f"Failed to fetch price history: {e}",
+                provider_name=self.provider_name,
+                ticker=ticker,
+                original_exception=e,
+            )
+
+    async def _fetch_price_history_impl(
+        self,
+        ticker: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Optional[PriceHistoryDTO]:
+        """
+        Internal implementation of price history fetching.
+
+        This method applies rate limiting and is called via with_retry.
 
         Args:
             ticker: Stock ticker symbol.
@@ -600,12 +647,179 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
             end_date: End date for price history.
 
         Returns:
-            Historical price data or None.
+            PriceHistoryDTO or None if data unavailable.
 
         Raises:
-            NotImplementedError: This method is not yet implemented.
+            ProviderError: On API errors or invalid responses.
         """
-        raise NotImplementedError("fetch_price_history will be implemented in subtask-4-3")
+        # Apply rate limiting before making the request
+        await self.rate_limiter.acquire()
+
+        try:
+            # Fetch price history from yfinance (blocking I/O, run in thread pool)
+            history_df = await asyncio.to_thread(
+                self._get_ticker_history,
+                ticker,
+                start_date,
+                end_date,
+            )
+
+            if history_df is None or history_df.empty:
+                self.logger.warning(f"No price history data returned for {ticker}")
+                return None
+
+            # Log raw snapshot (in production this would save to database)
+            self._log_raw_snapshot(
+                entity_type="price_history",
+                entity_key=ticker,
+                payload=history_df.to_dict(),
+            )
+
+            # Normalize price history into PriceHistoryDTO
+            price_history = self._normalize_price_history(
+                ticker,
+                history_df,
+                start_date,
+                end_date,
+            )
+
+            if price_history:
+                self.logger.info(
+                    f"Successfully fetched {len(price_history.data_points)} price data points for {ticker} "
+                    f"(date range: {price_history.start_date} to {price_history.end_date})"
+                )
+            else:
+                self.logger.warning(f"Could not normalize price history data for {ticker}")
+
+            return price_history
+
+        except Exception as e:
+            self.logger.error(f"Error fetching price history for {ticker}: {e}")
+            raise ProviderError(
+                message=f"Error fetching price history: {e}",
+                provider_name=self.provider_name,
+                ticker=ticker,
+                original_exception=e,
+            )
+
+    def _get_ticker_history(
+        self,
+        ticker: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Any:
+        """
+        Get historical price data from yfinance (synchronous).
+
+        This method runs in a thread pool via asyncio.to_thread to avoid blocking.
+
+        Args:
+            ticker: Stock ticker symbol.
+            start_date: Start date for price history.
+            end_date: End date for price history.
+
+        Returns:
+            Pandas DataFrame with columns: Open, High, Low, Close, Volume, Adj Close.
+
+        Raises:
+            Exception: On yfinance errors.
+        """
+        try:
+            ticker_obj = yf.Ticker(ticker)
+
+            # Fetch historical price data
+            # yfinance returns DataFrame with date index and OHLCV columns
+            if start_date or end_date:
+                # Convert date objects to strings for yfinance
+                start_str = start_date.strftime('%Y-%m-%d') if start_date else None
+                end_str = end_date.strftime('%Y-%m-%d') if end_date else None
+                history = ticker_obj.history(start=start_str, end=end_str)
+            else:
+                # Fetch maximum available history
+                history = ticker_obj.history(period='max')
+
+            # yfinance sometimes returns empty DataFrame on error
+            if history.empty:
+                return None
+
+            return history
+
+        except Exception as e:
+            self.logger.warning(f"yfinance error fetching history for {ticker}: {e}")
+            raise
+
+    def _normalize_price_history(
+        self,
+        ticker: str,
+        history_df: Any,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> Optional[PriceHistoryDTO]:
+        """
+        Normalize raw yfinance price history into PriceHistoryDTO.
+
+        Converts DataFrame rows into PriceDataPointDTO objects and determines
+        the actual date range of the returned data.
+
+        Args:
+            ticker: Stock ticker symbol.
+            history_df: Pandas DataFrame from yfinance with price data.
+            start_date: Requested start date (for validation).
+            end_date: Requested end date (for validation).
+
+        Returns:
+            PriceHistoryDTO with normalized price data, or None if data is invalid.
+        """
+        if history_df is None or history_df.empty:
+            return None
+
+        data_points = []
+
+        # Iterate through DataFrame rows (index is date)
+        for date_idx, row in history_df.iterrows():
+            try:
+                # Convert timestamp to date
+                if hasattr(date_idx, 'date'):
+                    price_date = date_idx.date()
+                else:
+                    price_date = date_idx
+
+                # Extract OHLCV data (handle missing values gracefully)
+                data_point = PriceDataPointDTO(
+                    ticker=ticker.upper(),
+                    date=price_date,
+                    open=float(row['Open']) if 'Open' in row and row['Open'] is not None else None,
+                    high=float(row['High']) if 'High' in row and row['High'] is not None else None,
+                    low=float(row['Low']) if 'Low' in row and row['Low'] is not None else None,
+                    close=float(row['Close']) if 'Close' in row and row['Close'] is not None else None,
+                    volume=int(row['Volume']) if 'Volume' in row and row['Volume'] is not None else None,
+                    adjusted_close=float(row['Adj Close']) if 'Adj Close' in row and row['Adj Close'] is not None else None,
+                )
+
+                data_points.append(data_point)
+
+            except Exception as e:
+                self.logger.warning(
+                    f"Error normalizing price data point for {ticker} on {date_idx}: {e}"
+                )
+                continue
+
+        if not data_points:
+            return None
+
+        # Sort by date ascending (chronological order)
+        data_points.sort(key=lambda dp: dp.date)
+
+        # Determine actual date range from the data
+        actual_start_date = data_points[0].date
+        actual_end_date = data_points[-1].date
+
+        return PriceHistoryDTO(
+            ticker=ticker.upper(),
+            start_date=actual_start_date,
+            end_date=actual_end_date,
+            data_points=data_points,
+        )
 
     # ============================================================================
     # CompanyUniverseProvider Implementation (Stubs for future implementation)
