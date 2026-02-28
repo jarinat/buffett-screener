@@ -10,9 +10,11 @@ from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from app import __version__
 from app.core.config import settings
+from app.core.db import engine
 
 router = APIRouter()
 
@@ -60,6 +62,23 @@ async def health_check() -> HealthResponse:
     )
 
 
+def check_database_connection() -> bool:
+    """
+    Check database connectivity.
+
+    Attempts to execute a simple query to verify the database is accessible.
+
+    Returns:
+        bool: True if database is accessible, False otherwise
+    """
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
+
+
 @router.get(
     "/readiness",
     response_model=ReadinessResponse,
@@ -78,8 +97,7 @@ async def readiness_check() -> ReadinessResponse:
     """
     checks = {
         "api": True,  # API is running if this endpoint is reachable
-        # TODO: Add database connectivity check
-        # "database": await check_database_connection(),
+        "database": check_database_connection(),
         # TODO: Add scheduler health check if enabled
         # "scheduler": check_scheduler_status() if settings.scheduler_enabled else True,
     }

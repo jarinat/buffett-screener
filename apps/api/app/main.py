@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.health import router as health_router
 from app.core.config import settings
+from app.core.db import dispose_db, init_db
 
 # Configure logging
 logging.basicConfig(
@@ -41,7 +42,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     # Initialize resources here (database, scheduler, etc.)
-    # TODO: Initialize database connection pool
+    logger.info("Initializing database connection pool")
+    init_db()
+    logger.info("Database initialized successfully")
     # TODO: Initialize APScheduler if enabled
 
     yield
@@ -50,7 +53,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Shutting down %s", settings.app_name)
 
     # Cleanup resources here
-    # TODO: Close database connections
+    logger.info("Closing database connections")
+    dispose_db()
+    logger.info("Database connections closed")
     # TODO: Shutdown scheduler
 
 
