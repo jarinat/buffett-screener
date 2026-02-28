@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from app.models.company import CompanyInfo
+from app.models.financial import IncomeStatement, BalanceSheet, CashFlow
 
 
 class CompanyUniverseProvider(ABC):
@@ -78,5 +79,114 @@ class CompanyUniverseProvider(ABC):
             ProviderError: If the data source is unavailable or returns an error
             NotFoundError: If the ticker does not exist
             ValidationError: If the provider data cannot be mapped to CompanyInfo
+        """
+        pass
+
+
+class FundamentalsProvider(ABC):
+    """
+    Abstract base class for fundamental financial data providers.
+
+    A fundamentals provider is responsible for:
+    1. Providing income statement data for companies
+    2. Providing balance sheet data for companies
+    3. Providing cash flow statement data for companies
+
+    Implementations must handle:
+    - Data source connectivity and error handling
+    - Rate limiting and caching as appropriate
+    - Mapping provider-specific data to canonical financial statement models
+    - Supporting multiple reporting periods (annual, quarterly)
+
+    Example implementation:
+        class YahooFundamentalsProvider(FundamentalsProvider):
+            def get_income_statement(self, ticker: str, period: str = "annual") -> IncomeStatement:
+                # Fetch income statement from Yahoo Finance
+                # Map to IncomeStatement object
+                return income_statement
+
+            def get_balance_sheet(self, ticker: str, period: str = "annual") -> BalanceSheet:
+                # Fetch balance sheet from Yahoo Finance
+                # Map to BalanceSheet object
+                return balance_sheet
+
+            def get_cash_flow(self, ticker: str, period: str = "annual") -> CashFlow:
+                # Fetch cash flow from Yahoo Finance
+                # Map to CashFlow object
+                return cash_flow
+    """
+
+    @abstractmethod
+    def get_income_statement(self, ticker: str, period: str = "annual") -> IncomeStatement:
+        """
+        Get income statement data for a specific company.
+
+        Retrieves the most recent income statement (profit & loss) for the given
+        ticker symbol. This includes revenue, expenses, and profitability metrics.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT')
+            period: Reporting period type - 'annual' for yearly statements or
+                'quarterly' for quarterly statements. Defaults to 'annual'.
+
+        Returns:
+            IncomeStatement: Income statement data including revenue, cost of revenue,
+                gross profit, operating expenses, operating income, net income,
+                EPS, and shares outstanding
+
+        Raises:
+            ProviderError: If the data source is unavailable or returns an error
+            NotFoundError: If the ticker does not exist or has no financial data
+            ValidationError: If the provider data cannot be mapped to IncomeStatement
+        """
+        pass
+
+    @abstractmethod
+    def get_balance_sheet(self, ticker: str, period: str = "annual") -> BalanceSheet:
+        """
+        Get balance sheet data for a specific company.
+
+        Retrieves the most recent balance sheet for the given ticker symbol.
+        This includes assets, liabilities, and shareholders' equity.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT')
+            period: Reporting period type - 'annual' for yearly statements or
+                'quarterly' for quarterly statements. Defaults to 'annual'.
+
+        Returns:
+            BalanceSheet: Balance sheet data including total assets, current assets,
+                total liabilities, current liabilities, long-term debt, and
+                shareholders' equity
+
+        Raises:
+            ProviderError: If the data source is unavailable or returns an error
+            NotFoundError: If the ticker does not exist or has no financial data
+            ValidationError: If the provider data cannot be mapped to BalanceSheet
+        """
+        pass
+
+    @abstractmethod
+    def get_cash_flow(self, ticker: str, period: str = "annual") -> CashFlow:
+        """
+        Get cash flow statement data for a specific company.
+
+        Retrieves the most recent cash flow statement for the given ticker symbol.
+        This includes operating, investing, and financing cash flows.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT')
+            period: Reporting period type - 'annual' for yearly statements or
+                'quarterly' for quarterly statements. Defaults to 'annual'.
+
+        Returns:
+            CashFlow: Cash flow statement data including operating cash flow,
+                capital expenditures, free cash flow, dividends paid, and
+                debt/equity financing activities
+
+        Raises:
+            ProviderError: If the data source is unavailable or returns an error
+            NotFoundError: If the ticker does not exist or has no financial data
+            ValidationError: If the provider data cannot be mapped to CashFlow
         """
         pass
