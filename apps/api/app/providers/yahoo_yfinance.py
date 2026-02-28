@@ -861,6 +861,151 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
         )
 
     # ============================================================================
+    # Batch Fetching Methods
+    # ============================================================================
+
+    async def fetch_batch_company_profiles(
+        self,
+        tickers: list[str],
+    ) -> dict[str, Optional[CompanyProfileDTO]]:
+        """
+        Fetch company profiles for multiple tickers sequentially.
+
+        Processes tickers one at a time to respect rate limits. Continues on errors
+        and returns partial results with None for failed tickers.
+
+        Args:
+            tickers: List of stock ticker symbols to fetch.
+
+        Returns:
+            Dictionary mapping ticker -> CompanyProfileDTO (or None if failed/unavailable).
+        """
+        self.logger.info(f"Starting batch fetch for {len(tickers)} company profiles")
+
+        results: dict[str, Optional[CompanyProfileDTO]] = {}
+
+        for ticker in tickers:
+            try:
+                profile = await self.fetch_company_profile(ticker)
+                results[ticker] = profile
+
+                if profile:
+                    self.logger.debug(f"Batch: Successfully fetched profile for {ticker}")
+                else:
+                    self.logger.debug(f"Batch: No profile data for {ticker}")
+
+            except Exception as e:
+                self.logger.warning(f"Batch: Failed to fetch profile for {ticker}: {e}")
+                results[ticker] = None
+
+        successful_count = sum(1 for v in results.values() if v is not None)
+        self.logger.info(
+            f"Batch fetch complete: {successful_count}/{len(tickers)} profiles fetched successfully"
+        )
+
+        return results
+
+    async def fetch_batch_financial_statements(
+        self,
+        tickers: list[str],
+        start_year: Optional[int] = None,
+        end_year: Optional[int] = None,
+    ) -> dict[str, list[FinancialStatementDTO]]:
+        """
+        Fetch financial statements for multiple tickers sequentially.
+
+        Processes tickers one at a time to respect rate limits. Continues on errors
+        and returns partial results with empty list for failed tickers.
+
+        Args:
+            tickers: List of stock ticker symbols to fetch.
+            start_year: Earliest fiscal year to fetch. None = fetch all available.
+            end_year: Latest fiscal year to fetch. None = fetch up to current year.
+
+        Returns:
+            Dictionary mapping ticker -> list of FinancialStatementDTO (empty list if failed/unavailable).
+        """
+        self.logger.info(
+            f"Starting batch fetch for {len(tickers)} financial statements "
+            f"(start_year={start_year}, end_year={end_year})"
+        )
+
+        results: dict[str, list[FinancialStatementDTO]] = {}
+
+        for ticker in tickers:
+            try:
+                statements = await self.fetch_financial_statements(ticker, start_year, end_year)
+                results[ticker] = statements
+
+                if statements:
+                    self.logger.debug(
+                        f"Batch: Successfully fetched {len(statements)} statements for {ticker}"
+                    )
+                else:
+                    self.logger.debug(f"Batch: No financial statements for {ticker}")
+
+            except Exception as e:
+                self.logger.warning(f"Batch: Failed to fetch statements for {ticker}: {e}")
+                results[ticker] = []
+
+        successful_count = sum(1 for v in results.values() if v)
+        self.logger.info(
+            f"Batch fetch complete: {successful_count}/{len(tickers)} tickers with financial data"
+        )
+
+        return results
+
+    async def fetch_batch_price_history(
+        self,
+        tickers: list[str],
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> dict[str, Optional[PriceHistoryDTO]]:
+        """
+        Fetch price history for multiple tickers sequentially.
+
+        Processes tickers one at a time to respect rate limits. Continues on errors
+        and returns partial results with None for failed tickers.
+
+        Args:
+            tickers: List of stock ticker symbols to fetch.
+            start_date: Start date for price history. None = fetch maximum available.
+            end_date: End date for price history. None = fetch up to most recent.
+
+        Returns:
+            Dictionary mapping ticker -> PriceHistoryDTO (or None if failed/unavailable).
+        """
+        self.logger.info(
+            f"Starting batch fetch for {len(tickers)} price histories "
+            f"(start_date={start_date}, end_date={end_date})"
+        )
+
+        results: dict[str, Optional[PriceHistoryDTO]] = {}
+
+        for ticker in tickers:
+            try:
+                history = await self.fetch_price_history(ticker, start_date, end_date)
+                results[ticker] = history
+
+                if history:
+                    self.logger.debug(
+                        f"Batch: Successfully fetched {len(history.data_points)} price points for {ticker}"
+                    )
+                else:
+                    self.logger.debug(f"Batch: No price history for {ticker}")
+
+            except Exception as e:
+                self.logger.warning(f"Batch: Failed to fetch price history for {ticker}: {e}")
+                results[ticker] = None
+
+        successful_count = sum(1 for v in results.values() if v is not None)
+        self.logger.info(
+            f"Batch fetch complete: {successful_count}/{len(tickers)} price histories fetched successfully"
+        )
+
+        return results
+
+    # ============================================================================
     # Utility Methods
     # ============================================================================
 
