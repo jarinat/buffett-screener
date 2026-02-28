@@ -9,9 +9,13 @@ Import models from this package to use them throughout the application.
 """
 
 from app.models.company import Company
+from app.models.financial_statement import FinancialStatementAnnual
 from app.models.listing import Listing
+from app.models.provider_snapshot import ProviderRawSnapshot
 
 __all__ = [
     "Company",
+    "FinancialStatementAnnual",
     "Listing",
+    "ProviderRawSnapshot",
 ]
