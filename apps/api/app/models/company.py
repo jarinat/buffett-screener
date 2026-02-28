@@ -115,12 +115,11 @@ class Company(Base):
         doc="All stock exchange listings for this company",
     )
 
-    # This relationship will be added when FinancialStatementAnnual model is created
-    # financial_statements: Mapped[list["FinancialStatementAnnual"]] = relationship(
-    #     "FinancialStatementAnnual",
-    #     back_populates="company",
-    #     doc="Annual financial statements for this company",
-    # )
+    financial_statements: Mapped[list["FinancialStatementAnnual"]] = relationship(
+        "FinancialStatementAnnual",
+        back_populates="company",
+        doc="Annual financial statements for this company",
+    )
 
     def __repr__(self) -> str:
         """String representation for debugging."""
