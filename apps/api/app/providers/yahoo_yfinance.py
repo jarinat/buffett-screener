@@ -238,7 +238,7 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
         )
 
     # ============================================================================
-    # FundamentalsProvider Implementation (Stubs for future subtasks)
+    # FundamentalsProvider Implementation - Financial Statements
     # ============================================================================
 
     async def fetch_financial_statements(
@@ -250,7 +250,56 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
         """
         Fetch annual financial statements for a company.
 
-        NOTE: This is a stub for subtask-4-2. Full implementation coming next.
+        Retrieves income statement, balance sheet, and cash flow data from yfinance
+        and normalizes it into FinancialStatementDTO objects. Returns data for all
+        available fiscal years, optionally filtered by start_year and end_year.
+
+        Args:
+            ticker: Stock ticker symbol (e.g., 'AAPL').
+            start_year: Earliest fiscal year to fetch (e.g., 2013). None = fetch all available.
+            end_year: Latest fiscal year to fetch (e.g., 2023). None = fetch up to current year.
+
+        Returns:
+            List of annual financial statements, ordered by fiscal year descending (newest first).
+            Empty list if no data available.
+
+        Raises:
+            ProviderError: If the API request fails or returns unexpected data.
+        """
+        self.logger.info(
+            f"Fetching financial statements for {ticker} "
+            f"(start_year={start_year}, end_year={end_year})"
+        )
+
+        try:
+            # Apply rate limiting and execute with retry
+            statements = await self.with_retry(
+                self._fetch_financial_statements_impl,
+                ticker=ticker,
+                start_year=start_year,
+                end_year=end_year,
+            )
+            return statements
+
+        except Exception as e:
+            self.logger.error(f"Failed to fetch financial statements for {ticker}: {e}")
+            raise ProviderError(
+                message=f"Failed to fetch financial statements: {e}",
+                provider_name=self.provider_name,
+                ticker=ticker,
+                original_exception=e,
+            )
+
+    async def _fetch_financial_statements_impl(
+        self,
+        ticker: str,
+        start_year: Optional[int] = None,
+        end_year: Optional[int] = None,
+    ) -> list[FinancialStatementDTO]:
+        """
+        Internal implementation of financial statements fetching.
+
+        This method applies rate limiting and is called via with_retry.
 
         Args:
             ticker: Stock ticker symbol.
@@ -261,9 +310,274 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
             List of annual financial statements.
 
         Raises:
-            NotImplementedError: This method is not yet implemented.
+            ProviderError: On API errors or invalid responses.
         """
-        raise NotImplementedError("fetch_financial_statements will be implemented in subtask-4-2")
+        # Apply rate limiting before making the request
+        await self.rate_limiter.acquire()
+
+        try:
+            # Fetch all three financial statements from yfinance
+            # (blocking I/O, run in thread pool)
+            financials_data = await asyncio.to_thread(
+                self._get_ticker_financials,
+                ticker,
+            )
+
+            if not financials_data:
+                self.logger.warning(f"No financial data returned for {ticker}")
+                return []
+
+            # Log raw snapshots for each statement type
+            for statement_type, data in financials_data.items():
+                if data is not None and not data.empty:
+                    self._log_raw_snapshot(
+                        entity_type=f"financial_statement_{statement_type}",
+                        entity_key=ticker,
+                        payload=data.to_dict(),
+                    )
+
+            # Normalize and merge the three statements into FinancialStatementDTO objects
+            statements = self._normalize_financial_statements(
+                ticker,
+                financials_data,
+                start_year,
+                end_year,
+            )
+
+            if statements:
+                self.logger.info(
+                    f"Successfully fetched {len(statements)} annual statements for {ticker} "
+                    f"(years: {[s.fiscal_year for s in statements]})"
+                )
+            else:
+                self.logger.warning(f"No financial statements available for {ticker}")
+
+            return statements
+
+        except Exception as e:
+            self.logger.error(f"Error fetching financial statements for {ticker}: {e}")
+            raise ProviderError(
+                message=f"Error fetching financial statements: {e}",
+                provider_name=self.provider_name,
+                ticker=ticker,
+                original_exception=e,
+            )
+
+    def _get_ticker_financials(self, ticker: str) -> dict[str, Any]:
+        """
+        Get all financial statements from yfinance (synchronous).
+
+        This method runs in a thread pool via asyncio.to_thread to avoid blocking.
+        Fetches income statement, balance sheet, and cash flow statement.
+
+        Args:
+            ticker: Stock ticker symbol.
+
+        Returns:
+            Dictionary with keys 'income', 'balance', 'cashflow' containing pandas DataFrames.
+
+        Raises:
+            Exception: On yfinance errors.
+        """
+        try:
+            ticker_obj = yf.Ticker(ticker)
+
+            # Fetch all three annual financial statements
+            # yfinance returns DataFrames with columns as dates and rows as line items
+            income_stmt = ticker_obj.financials  # Income statement (annual)
+            balance_sheet = ticker_obj.balance_sheet  # Balance sheet (annual)
+            cashflow_stmt = ticker_obj.cashflow  # Cash flow statement (annual)
+
+            return {
+                'income': income_stmt,
+                'balance': balance_sheet,
+                'cashflow': cashflow_stmt,
+            }
+
+        except Exception as e:
+            self.logger.warning(f"yfinance error fetching financials for {ticker}: {e}")
+            raise
+
+    def _normalize_financial_statements(
+        self,
+        ticker: str,
+        financials_data: dict[str, Any],
+        start_year: Optional[int] = None,
+        end_year: Optional[int] = None,
+    ) -> list[FinancialStatementDTO]:
+        """
+        Normalize raw yfinance financial statements into FinancialStatementDTO objects.
+
+        Merges income statement, balance sheet, and cash flow data for each fiscal year
+        into a single FinancialStatementDTO. Filters by year range if specified.
+
+        Args:
+            ticker: Stock ticker symbol.
+            financials_data: Dict with 'income', 'balance', 'cashflow' DataFrames.
+            start_year: Earliest fiscal year to include.
+            end_year: Latest fiscal year to include.
+
+        Returns:
+            List of FinancialStatementDTO ordered by fiscal year descending (newest first).
+        """
+        income_df = financials_data.get('income')
+        balance_df = financials_data.get('balance')
+        cashflow_df = financials_data.get('cashflow')
+
+        # Check if we have at least one non-empty statement
+        if (income_df is None or income_df.empty) and \
+           (balance_df is None or balance_df.empty) and \
+           (cashflow_df is None or cashflow_df.empty):
+            return []
+
+        # Extract unique fiscal years from all statements
+        # yfinance DataFrames have dates as columns
+        fiscal_dates = set()
+        if income_df is not None and not income_df.empty:
+            fiscal_dates.update(income_df.columns)
+        if balance_df is not None and not balance_df.empty:
+            fiscal_dates.update(balance_df.columns)
+        if cashflow_df is not None and not cashflow_df.empty:
+            fiscal_dates.update(cashflow_df.columns)
+
+        if not fiscal_dates:
+            return []
+
+        # Build a FinancialStatementDTO for each fiscal year
+        statements = []
+        for fiscal_date in fiscal_dates:
+            try:
+                # Convert timestamp to date
+                if hasattr(fiscal_date, 'date'):
+                    fiscal_year_end = fiscal_date.date()
+                else:
+                    fiscal_year_end = fiscal_date
+
+                fiscal_year = fiscal_year_end.year
+
+                # Filter by year range if specified
+                if start_year and fiscal_year < start_year:
+                    continue
+                if end_year and fiscal_year > end_year:
+                    continue
+
+                # Extract fields from each statement for this fiscal year
+                statement = FinancialStatementDTO(
+                    ticker=ticker.upper(),
+                    fiscal_year=fiscal_year,
+                    fiscal_year_end=fiscal_year_end,
+                    # Income Statement
+                    revenue=self._get_financial_field(income_df, fiscal_date, 'Total Revenue'),
+                    gross_profit=self._get_financial_field(income_df, fiscal_date, 'Gross Profit'),
+                    operating_income=self._get_financial_field(income_df, fiscal_date, 'Operating Income'),
+                    net_income=self._get_financial_field(income_df, fiscal_date, 'Net Income'),
+                    eps_diluted=self._get_financial_field(income_df, fiscal_date, 'Diluted EPS'),
+                    # Balance Sheet
+                    total_assets=self._get_financial_field(balance_df, fiscal_date, 'Total Assets'),
+                    total_liabilities=self._get_financial_field(
+                        balance_df, fiscal_date, 'Total Liabilities Net Minority Interest'
+                    ),
+                    shareholders_equity=self._get_financial_field(
+                        balance_df, fiscal_date, 'Stockholders Equity'
+                    ),
+                    current_assets=self._get_financial_field(balance_df, fiscal_date, 'Current Assets'),
+                    current_liabilities=self._get_financial_field(
+                        balance_df, fiscal_date, 'Current Liabilities'
+                    ),
+                    long_term_debt=self._get_financial_field(balance_df, fiscal_date, 'Long Term Debt'),
+                    # Cash Flow
+                    operating_cash_flow=self._get_financial_field(
+                        cashflow_df, fiscal_date, 'Operating Cash Flow'
+                    ),
+                    capital_expenditure=self._get_financial_field(
+                        cashflow_df, fiscal_date, 'Capital Expenditure'
+                    ),
+                    free_cash_flow=self._get_financial_field(cashflow_df, fiscal_date, 'Free Cash Flow'),
+                )
+
+                statements.append(statement)
+
+            except Exception as e:
+                self.logger.warning(
+                    f"Error normalizing financial statement for {ticker} "
+                    f"fiscal date {fiscal_date}: {e}"
+                )
+                continue
+
+        # Sort by fiscal year descending (newest first)
+        statements.sort(key=lambda s: s.fiscal_year, reverse=True)
+
+        return statements
+
+    def _get_financial_field(
+        self,
+        df: Any,
+        fiscal_date: Any,
+        field_name: str,
+    ) -> Optional[float]:
+        """
+        Extract a financial field from a yfinance DataFrame.
+
+        Handles missing fields and various yfinance field name variations gracefully.
+
+        Args:
+            df: Pandas DataFrame from yfinance (or None).
+            fiscal_date: Column key (fiscal year end date).
+            field_name: Row index (field name to extract).
+
+        Returns:
+            Field value as float, or None if not found or invalid.
+        """
+        if df is None or df.empty:
+            return None
+
+        if fiscal_date not in df.columns:
+            return None
+
+        try:
+            # Try exact field name match
+            if field_name in df.index:
+                value = df.loc[field_name, fiscal_date]
+                return float(value) if value is not None and not (hasattr(value, 'isna') and value.isna()) else None
+
+            # yfinance field names can vary - try common alternatives
+            field_alternatives = {
+                'Total Revenue': ['Total Revenue', 'Revenue'],
+                'Gross Profit': ['Gross Profit'],
+                'Operating Income': ['Operating Income', 'EBIT'],
+                'Net Income': ['Net Income', 'Net Income Common Stockholders'],
+                'Diluted EPS': ['Diluted EPS', 'Basic EPS'],
+                'Total Assets': ['Total Assets'],
+                'Total Liabilities Net Minority Interest': [
+                    'Total Liabilities Net Minority Interest',
+                    'Total Liabilities',
+                ],
+                'Stockholders Equity': [
+                    'Stockholders Equity',
+                    'Total Equity Gross Minority Interest',
+                    'Common Stock Equity',
+                ],
+                'Current Assets': ['Current Assets'],
+                'Current Liabilities': ['Current Liabilities'],
+                'Long Term Debt': ['Long Term Debt', 'Long Term Debt And Capital Lease Obligation'],
+                'Operating Cash Flow': ['Operating Cash Flow', 'Total Cash From Operating Activities'],
+                'Capital Expenditure': ['Capital Expenditure', 'Capital Expenditures'],
+                'Free Cash Flow': ['Free Cash Flow'],
+            }
+
+            # Try alternatives
+            for alt_name in field_alternatives.get(field_name, []):
+                if alt_name in df.index:
+                    value = df.loc[alt_name, fiscal_date]
+                    return float(value) if value is not None and not (
+                        hasattr(value, 'isna') and value.isna()
+                    ) else None
+
+            return None
+
+        except Exception as e:
+            self.logger.debug(f"Error extracting field {field_name}: {e}")
+            return None
 
     # ============================================================================
     # PriceHistoryProvider Implementation (Stubs for future subtasks)
