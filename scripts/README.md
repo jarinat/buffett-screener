@@ -195,6 +195,61 @@ Checking for expected content:
 ========================================
 ```
 
+#### `test-mailhog.sh`
+Focused verification script for the Mailhog email testing service.
+
+**Features:**
+- Tests HTTP 200 response from Mailhog web UI
+- Validates HTML content
+- Checks for Mailhog UI elements
+- Tests Mailhog API endpoint
+- Displays current message count
+- Color-coded results
+- Includes SMTP configuration examples
+
+**Usage:**
+```bash
+./scripts/test-mailhog.sh
+```
+
+**Prerequisites:**
+- Docker services running (`docker compose up -d`)
+- Mailhog service is healthy
+
+**What it tests:**
+- GET http://localhost:8025 returns 200 OK
+- Response is valid HTML
+- Mailhog branding and UI elements are present
+- API endpoint at http://localhost:8025/api/v2/messages is accessible
+
+**Expected Output:**
+```
+========================================
+Mailhog Web Interface Verification
+========================================
+
+Testing: http://localhost:8025
+
+[1/3] Checking Mailhog Web Interface...
+HTTP Status Code: 200
+
+✓ Status Code: 200 OK
+[2/3] Validating HTML Response...
+✓ HTML Response: Valid HTML document received
+
+[3/3] Checking for Mailhog UI Elements...
+✓ Mailhog branding detected
+✓ Web application scripts detected
+
+Bonus: Testing Mailhog API...
+✓ Mailhog API is accessible (http://localhost:8025/api/v2/messages)
+  Current messages in inbox: 0
+
+========================================
+✓ Mailhog Verification PASSED
+========================================
+```
+
 ## Quick Start
 
 For first-time setup, use the verification script:
@@ -206,6 +261,7 @@ chmod +x scripts/dev/stop.sh
 chmod +x scripts/verify-docker-setup.sh
 chmod +x scripts/test-api-health.sh
 chmod +x scripts/test-frontend.sh
+chmod +x scripts/test-mailhog.sh
 
 # Run comprehensive verification script (does everything)
 ./scripts/verify-docker-setup.sh
@@ -213,6 +269,7 @@ chmod +x scripts/test-frontend.sh
 # Or run individual service tests
 ./scripts/test-api-health.sh
 ./scripts/test-frontend.sh
+./scripts/test-mailhog.sh
 ```
 
 For daily development:
