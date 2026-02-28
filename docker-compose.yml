@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: buffett-screener-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: buffett_screener
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d buffett_screener"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - buffett-network
+
+  # FastAPI Backend
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: buffett-screener-api
+    restart: unless-stopped
+    environment:
+      # Application
+      APP_NAME: "Buffett Screener API"
+      APP_VERSION: "0.1.0"
+      ENVIRONMENT: development
+      DEBUG: "true"
+      LOG_LEVEL: DEBUG
+
+      # API Server
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_WORKERS: 1
+      API_RELOAD: "true"
+
+      # CORS
+      CORS_ORIGINS: "http://localhost:3000,http://web:3000"
+      CORS_ALLOW_CREDENTIALS: "true"
+
+      # Database
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/buffett_screener"
+      DATABASE_ECHO: "true"
+      DATABASE_POOL_SIZE: 5
+      DATABASE_MAX_OVERFLOW: 10
+
+      # Scheduler
+      SCHEDULER_ENABLED: "true"
+      SCHEDULER_TIMEZONE: UTC
+
+      # Data Ingestion
+      INGESTION_BATCH_SIZE: 100
+      INGESTION_RETRY_ATTEMPTS: 3
+
+      # External Providers
+      YAHOO_FINANCE_TIMEOUT: 30
+      YAHOO_FINANCE_RATE_LIMIT: 2000
+
+      # Email (Mailhog)
+      EMAIL_ENABLED: "true"
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      SMTP_TLS: "false"
+      SMTP_FROM_EMAIL: "noreply@buffett-screener.local"
+
+      # Security
+      SECRET_KEY: "dev-secret-key-change-in-production"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,api"
+    volumes:
+      - ./apps/api:/app
+      - api_cache:/app/.cache
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - buffett-network
+
+  # Next.js Frontend
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      target: development
+    container_name: buffett-screener-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: "http://localhost:8000"
+      NEXT_TELEMETRY_DISABLED: 1
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - buffett-network
+
+  # Mailhog - Local Email Testing
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: buffett-screener-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP server
+      - "8025:8025"  # Web UI
+    networks:
+      - buffett-network
+
+volumes:
+  postgres_data:
+    name: buffett-screener-postgres-data
+  api_cache:
+    name: buffett-screener-api-cache
+
+networks:
+  buffett-network:
+    name: buffett-screener-network
+    driver: bridge
