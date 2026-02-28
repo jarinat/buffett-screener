@@ -1,0 +1,39 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude\\worktrees\\tasks\\001-monorepo-development-environment-setup/**)",
+      "Write(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude\\worktrees\\tasks\\001-monorepo-development-environment-setup/**)",
+      "Edit(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude\\worktrees\\tasks\\001-monorepo-development-environment-setup/**)",
+      "Glob(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude\\worktrees\\tasks\\001-monorepo-development-environment-setup/**)",
+      "Grep(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude\\worktrees\\tasks\\001-monorepo-development-environment-setup/**)",
+      "Read(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude\\worktrees\\tasks\\001-monorepo-development-environment-setup\\.auto-claude\\specs\\001-monorepo-development-environment-setup/**)",
+      "Write(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude\\worktrees\\tasks\\001-monorepo-development-environment-setup\\.auto-claude\\specs\\001-monorepo-development-environment-setup/**)",
+      "Edit(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude\\worktrees\\tasks\\001-monorepo-development-environment-setup\\.auto-claude\\specs\\001-monorepo-development-environment-setup/**)",
+      "Read(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude/**)",
+      "Write(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude/**)",
+      "Edit(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude/**)",
+      "Glob(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude/**)",
+      "Grep(C:\\Users\\jarin\\git\\my-projects\\buffett-screener\\.auto-claude/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__query-docs(*)",
+      "mcp__graphiti-memory__search_nodes(*)",
+      "mcp__graphiti-memory__search_facts(*)",
+      "mcp__graphiti-memory__add_episode(*)",
+      "mcp__graphiti-memory__get_episodes(*)",
+      "mcp__graphiti-memory__get_entity_edge(*)"
+    ]
+  }
+}
