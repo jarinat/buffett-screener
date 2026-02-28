@@ -13,6 +13,20 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import settings
 from app.core.db import Base
 
+# Import all models so they're registered with Base.metadata for autogenerate
+from app.models import (  # noqa: F401
+    AlertEvent,
+    AlertRule,
+    Company,
+    DerivedMetric,
+    FinancialStatementAnnual,
+    Listing,
+    ProviderRawSnapshot,
+    ScreenDefinition,
+    ScreenResult,
+    ScreenRun,
+)
+
 # This is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
