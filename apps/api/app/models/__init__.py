@@ -7,8 +7,18 @@ engine is decoupled from any specific data source.
 """
 
 from app.models.company import CompanyInfo, Listing
+from app.models.financial import (
+    BalanceSheet,
+    CashFlow,
+    FinancialStatement,
+    IncomeStatement,
+)
 
 __all__ = [
     "CompanyInfo",
     "Listing",
+    "FinancialStatement",
+    "IncomeStatement",
+    "BalanceSheet",
+    "CashFlow",
 ]
