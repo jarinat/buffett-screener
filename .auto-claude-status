@@ -1,25 +1,25 @@
 {
   "active": true,
-  "spec": "001-monorepo-development-environment-setup",
+  "spec": "004-yahoo-yfinance-provider-adapter",
   "state": "building",
   "subtasks": {
-    "completed": 14,
-    "total": 16,
+    "completed": 15,
+    "total": 17,
     "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Integration & Verification",
+    "current": "Testing",
     "id": null,
-    "total": 4
+    "total": 2
   },
   "workers": {
     "active": 0,
     "max": 1
   },
   "session": {
-    "number": 16,
-    "started_at": "2026-02-28T09:56:09.697684"
+    "number": 17,
+    "started_at": "2026-02-28T11:07:52.158587"
   },
-  "last_update": "2026-02-28T10:35:18.877409"
+  "last_update": "2026-02-28T11:54:08.506892"
 }
