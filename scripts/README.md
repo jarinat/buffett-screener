@@ -98,6 +98,103 @@ PostgreSQL:       localhost:5432
 ✓ All services are running!
 ```
 
+#### `test-api-health.sh`
+Focused verification script for the API health check endpoint.
+
+**Features:**
+- Tests HTTP 200 response from API
+- Validates JSON response structure
+- Color-coded pass/fail results
+- Displays health check details
+- Includes troubleshooting guidance
+
+**Usage:**
+```bash
+./scripts/test-api-health.sh
+```
+
+**Prerequisites:**
+- Docker services running (`docker compose up -d`)
+- API service is healthy (wait 30-60 seconds)
+
+**What it tests:**
+- GET http://localhost:8000/health returns 200 OK
+- Response is valid JSON
+- Response contains: status, service, version, environment, timestamp
+
+**Expected Output:**
+```
+========================================
+API Health Check Verification
+========================================
+
+Testing: http://localhost:8000/health
+
+✓ API Health Check: PASSED
+✓ HTTP Status: 200 OK
+
+Response:
+{
+  "status": "healthy",
+  "service": "buffett-screener-api",
+  "version": "0.1.0",
+  "environment": "development",
+  "timestamp": "2026-02-28T10:30:00.000000"
+}
+```
+
+#### `test-frontend.sh`
+Focused verification script for the frontend application.
+
+**Features:**
+- Tests HTTP 200 response from frontend
+- Validates HTML content
+- Checks for Tailwind CSS classes
+- Verifies expected page content
+- Color-coded results
+
+**Usage:**
+```bash
+./scripts/test-frontend.sh
+```
+
+**Prerequisites:**
+- Docker services running (`docker compose up -d`)
+- Web service is healthy (wait 30-60 seconds for first compile)
+
+**What it tests:**
+- GET http://localhost:3000 returns 200 OK
+- Response is valid HTML
+- Tailwind CSS utilities are present
+- Expected content: "Buffett Screener", feature cards
+
+**Expected Output:**
+```
+========================================
+Frontend Verification Test
+========================================
+
+Testing: http://localhost:3000
+
+✓ Status Code: 200 OK
+✓ HTML Response: Valid HTML document received
+
+Checking for Tailwind CSS:
+✓ Tailwind utilities detected: min-h-screen
+✓ Tailwind utilities detected: flex-col
+✓ Tailwind utilities detected: text-4xl
+
+Checking for expected content:
+✓ Page title found: 'Buffett Screener'
+✓ Content found: 'Quality Companies' section
+✓ Content found: 'Value Analysis' section
+✓ Content found: 'Long-term Focus' section
+
+========================================
+✓ Frontend Verification PASSED
+========================================
+```
+
 ## Quick Start
 
 For first-time setup, use the verification script:
@@ -107,9 +204,15 @@ For first-time setup, use the verification script:
 chmod +x scripts/dev/start.sh
 chmod +x scripts/dev/stop.sh
 chmod +x scripts/verify-docker-setup.sh
+chmod +x scripts/test-api-health.sh
+chmod +x scripts/test-frontend.sh
 
-# Run verification script (does everything)
+# Run comprehensive verification script (does everything)
 ./scripts/verify-docker-setup.sh
+
+# Or run individual service tests
+./scripts/test-api-health.sh
+./scripts/test-frontend.sh
 ```
 
 For daily development:
