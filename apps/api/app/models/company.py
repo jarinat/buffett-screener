@@ -7,7 +7,7 @@ must return. These models are independent of any specific data source.
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Listing(BaseModel):
@@ -46,10 +46,8 @@ class CompanyInfo(BaseModel):
         description="Primary trading currency (ISO 4217 code, e.g., 'USD')"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "company_id": "AAPL",
                 "name": "Apple Inc.",
@@ -61,3 +59,4 @@ class CompanyInfo(BaseModel):
                 "currency": "USD",
             }
         }
+    )

@@ -10,7 +10,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FinancialStatement(BaseModel):
@@ -93,10 +93,8 @@ class IncomeStatement(FinancialStatement):
         description="Diluted weighted average shares outstanding",
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "company_id": "AAPL",
                 "fiscal_year": 2023,
@@ -113,6 +111,7 @@ class IncomeStatement(FinancialStatement):
                 "eps_diluted": "6.16",
             }
         }
+    )
 
 
 class BalanceSheet(FinancialStatement):
@@ -188,10 +187,8 @@ class BalanceSheet(FinancialStatement):
         description="Total shareholders' equity (book value)",
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "company_id": "AAPL",
                 "fiscal_year": 2023,
@@ -206,6 +203,7 @@ class BalanceSheet(FinancialStatement):
                 "shareholders_equity": "62318000000",
             }
         }
+    )
 
 
 class CashFlow(FinancialStatement):
@@ -283,10 +281,8 @@ class CashFlow(FinancialStatement):
         description="Operating cash flow minus capital expenditures",
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "company_id": "AAPL",
                 "fiscal_year": 2023,
@@ -301,3 +297,4 @@ class CashFlow(FinancialStatement):
                 "stock_repurchased": "-77550000000",
             }
         }
+    )

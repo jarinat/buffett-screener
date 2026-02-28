@@ -10,7 +10,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PriceData(BaseModel):
@@ -49,10 +49,8 @@ class PriceData(BaseModel):
         description="Data provider that supplied this price data (e.g., 'yahoo', 'alpha_vantage')"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "ticker": "AAPL",
                 "date": "2024-01-15",
@@ -66,6 +64,7 @@ class PriceData(BaseModel):
                 "source_provider": "yahoo",
             }
         }
+    )
 
 
 class PriceHistory(BaseModel):
@@ -87,10 +86,8 @@ class PriceHistory(BaseModel):
         description="List of daily price data points, ordered chronologically"
     )
 
-    class Config:
-        """Pydantic model configuration."""
-
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "company_id": "AAPL",
                 "ticker": "AAPL",
@@ -126,3 +123,4 @@ class PriceHistory(BaseModel):
                 ],
             }
         }
+    )
