@@ -218,12 +218,19 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
         """
         Normalize raw yfinance info into CompanyProfileDTO.
 
+        Extracts company profile fields from the raw yfinance info dictionary
+        and creates a standardized CompanyProfileDTO. Returns None if the
+        ticker appears invalid (no company name found).
+
         Args:
             ticker: Stock ticker symbol.
             info: Raw info dictionary from yfinance.
 
         Returns:
             CompanyProfileDTO or None if essential fields are missing.
+
+        Raises:
+            No exceptions raised - returns None on normalization failures.
         """
         # yfinance field mappings (field names can vary)
         name = info.get('longName') or info.get('shortName')
@@ -417,6 +424,7 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
 
         Merges income statement, balance sheet, and cash flow data for each fiscal year
         into a single FinancialStatementDTO. Filters by year range if specified.
+        Handles missing or incomplete data gracefully by logging warnings and continuing.
 
         Args:
             ticker: Stock ticker symbol.
@@ -426,6 +434,9 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
 
         Returns:
             List of FinancialStatementDTO ordered by fiscal year descending (newest first).
+
+        Raises:
+            No exceptions raised - errors during normalization are logged and skipped.
         """
         income_df = financials_data.get('income')
         balance_df = financials_data.get('balance')
@@ -766,7 +777,8 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
         Normalize raw yfinance price history into PriceHistoryDTO.
 
         Converts DataFrame rows into PriceDataPointDTO objects and determines
-        the actual date range of the returned data.
+        the actual date range of the returned data. Handles missing OHLCV values
+        gracefully by setting them to None.
 
         Args:
             ticker: Stock ticker symbol.
@@ -776,6 +788,9 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
 
         Returns:
             PriceHistoryDTO with normalized price data, or None if data is invalid.
+
+        Raises:
+            No exceptions raised - errors during normalization are logged and skipped.
         """
         if history_df is None or history_df.empty:
             return None
