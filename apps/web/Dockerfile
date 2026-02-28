@@ -1,4 +1,5 @@
 # Multi-stage build for optimized production image
+
 # Stage 1: Dependencies installation
 FROM node:18-alpine AS deps
 
@@ -10,11 +11,39 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json* ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (FIXED: removed --only=production)
+RUN npm ci
 
 
-# Stage 2: Builder stage
+# Stage 2: Development stage with hot reload
+FROM node:18-alpine AS development
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache libc6-compat
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install all dependencies (including dev)
+RUN npm ci
+
+# Copy application files
+COPY . .
+
+# Set environment
+ENV NODE_ENV=development \
+    NEXT_TELEMETRY_DISABLED=1
+
+# Expose port
+EXPOSE 3000
+
+# Run development server with hot reload
+CMD ["npm", "run", "dev"]
+
+
+# Stage 3: Builder stage
 FROM node:18-alpine AS builder
 
 WORKDIR /app
@@ -32,7 +61,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 
-# Stage 3: Runtime stage
+# Stage 4: Runtime stage
 FROM node:18-alpine AS runner
 
 WORKDIR /app
