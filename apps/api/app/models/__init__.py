@@ -13,6 +13,7 @@ from app.models.financial import (
     FinancialStatement,
     IncomeStatement,
 )
+from app.models.price import PriceData, PriceHistory
 
 __all__ = [
     "CompanyInfo",
@@ -21,4 +22,6 @@ __all__ = [
     "IncomeStatement",
     "BalanceSheet",
     "CashFlow",
+    "PriceData",
+    "PriceHistory",
 ]
