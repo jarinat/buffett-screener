@@ -16,6 +16,7 @@ from datetime import date, datetime
 from typing import Any, Optional
 
 import yfinance as yf
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.domain.provider_contracts import (
@@ -29,6 +30,7 @@ from app.domain.provider_contracts import (
     PriceHistoryProvider,
     ProviderError,
 )
+from app.models.provider import ProviderRawSnapshot
 from app.providers.base import BaseProvider
 
 logger = logging.getLogger(__name__)
@@ -53,6 +55,7 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
         rate_limit_window_seconds: Optional[int] = None,
         retry_attempts: int = 3,
         request_timeout: Optional[int] = None,
+        db_session: Optional[Session] = None,
     ):
         """
         Initialize the Yahoo Finance provider.
@@ -62,6 +65,7 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
             rate_limit_window_seconds: Time window for rate limiting in seconds (default: 3600).
             retry_attempts: Number of retry attempts for failed requests (default: 3).
             request_timeout: Request timeout in seconds (default: from settings or 30).
+            db_session: Optional database session for persisting raw snapshots.
         """
         # Use settings or defaults
         rate_limit = rate_limit_requests or settings.yahoo_finance_rate_limit
@@ -75,9 +79,12 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
             request_timeout=timeout,
         )
 
+        self.db_session = db_session
+
         self.logger.info(
             f"YahooYFinanceProvider initialized (rate_limit={rate_limit}/hour, "
-            f"timeout={timeout}s, retries={retry_attempts})"
+            f"timeout={timeout}s, retries={retry_attempts}, "
+            f"db_session={'configured' if db_session else 'not configured'})"
         )
 
     # ============================================================================
@@ -145,7 +152,7 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
                 self.logger.warning(f"No info data returned for {ticker}")
                 return None
 
-            # Log raw snapshot (in production this would save to database)
+            # Log raw snapshot with timestamp and payload
             self._log_raw_snapshot(
                 entity_type="company_profile",
                 entity_key=ticker,
@@ -668,7 +675,7 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
                 self.logger.warning(f"No price history data returned for {ticker}")
                 return None
 
-            # Log raw snapshot (in production this would save to database)
+            # Log raw snapshot with timestamp and payload
             self._log_raw_snapshot(
                 entity_type="price_history",
                 entity_key=ticker,
@@ -863,22 +870,59 @@ class YahooYFinanceProvider(BaseProvider, CompanyUniverseProvider, FundamentalsP
         entity_key: str,
         payload: dict[str, Any],
         http_status: Optional[int] = None,
-    ) -> None:
+        ingestion_run_id: Optional[str] = None,
+    ) -> ProviderRawSnapshot:
         """
         Log raw API response as a snapshot.
 
-        In production, this would create a ProviderRawSnapshot database record.
-        For now, we log it for debugging.
+        Creates a ProviderRawSnapshot record with the complete raw response.
+        If a database session is configured, the snapshot is persisted to the database.
+        Otherwise, it's created in-memory and logged for debugging.
 
         Args:
             entity_type: Type of entity (e.g., 'company_profile', 'income_statement').
             entity_key: Entity identifier (e.g., ticker symbol).
-            payload: Raw response payload.
+            payload: Raw response payload (must be JSON-serializable).
             http_status: HTTP status code (if applicable).
+            ingestion_run_id: Optional ID of the ingestion run that created this snapshot.
+
+        Returns:
+            ProviderRawSnapshot instance (persisted to DB if session available).
         """
-        # TODO: In subtask-4-4, this will create ProviderRawSnapshot database records
-        self.logger.debug(
-            f"Raw snapshot: provider={self.provider_name}, "
-            f"type={entity_type}, key={entity_key}, "
-            f"payload_size={len(str(payload))} chars"
+        # Create ProviderRawSnapshot instance
+        snapshot = ProviderRawSnapshot(
+            provider_name=self.provider_name,
+            provider_entity_type=entity_type,
+            provider_entity_key=entity_key,
+            fetched_at=datetime.utcnow(),
+            payload_json=payload,
+            http_status=http_status,
+            ingestion_run_id=ingestion_run_id,
         )
+
+        # Persist to database if session is configured
+        if self.db_session:
+            try:
+                self.db_session.add(snapshot)
+                self.db_session.commit()
+                self.logger.debug(
+                    f"Saved raw snapshot: provider={self.provider_name}, "
+                    f"type={entity_type}, key={entity_key}, "
+                    f"snapshot_id={snapshot.snapshot_id}"
+                )
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to persist raw snapshot for {entity_key}: {e}",
+                    exc_info=True,
+                )
+                self.db_session.rollback()
+        else:
+            # No database session configured - log for debugging
+            self.logger.debug(
+                f"Raw snapshot (not persisted): provider={self.provider_name}, "
+                f"type={entity_type}, key={entity_key}, "
+                f"payload_size={len(str(payload))} chars, "
+                f"snapshot_id={snapshot.snapshot_id}"
+            )
+
+        return snapshot
