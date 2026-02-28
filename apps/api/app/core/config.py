@@ -90,6 +90,17 @@ class Settings(BaseSettings):
         default=2000, description="Yahoo Finance requests per hour", ge=1
     )
 
+    # Provider Selection
+    default_company_provider: str = Field(
+        default="yahoo", description="Default provider for company universe data"
+    )
+    default_fundamentals_provider: str = Field(
+        default="yahoo", description="Default provider for fundamental financial data"
+    )
+    default_price_provider: str = Field(
+        default="yahoo", description="Default provider for price history data"
+    )
+
     # Email (for alerts)
     email_enabled: bool = Field(default=False, description="Enable email notifications")
     smtp_host: str = Field(default="localhost", description="SMTP server host")
